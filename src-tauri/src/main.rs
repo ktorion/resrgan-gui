@@ -1,8 +1,3 @@
-#![cfg_attr(
-    all(not(debug_assertions), target_os = "windows"),
-    windows_subsystem = "windows"
-)]
-
 use native_dialog::FileDialog;
 use new_mime_guess;
 use std::fs;
@@ -22,19 +17,19 @@ struct ConstantPaths {
 impl ConstantPaths {
     fn new() -> Self {
         Self {
-            resrgan_path: ".\\resrgan\\realesrgan-ncnn-vulkan.exe".to_string(),
-            model_path: ".\\resrgan\\models".to_string(),
-            ffmpeg_path: ".\\resrgan\\ffmpeg.exe".to_string(),
+            resrgan_path: "./resrgan/realesrgan-ncnn-vulkan".to_string(),
+            model_path: "./resrgan/models".to_string(),
+            ffmpeg_path: "./resrgan/ffmpeg".to_string(),
             output_path: format!(
-                "{}\\resrgan-gui",
+                "{}/resrgan-gui",
                 path_to_string(tauri::api::path::picture_dir().unwrap())
             ),
             tmp_in_path: format!(
-                "{}\\resrgan-gui\\tmp_input",
+                "{}/resrgan-gui/tmp_input",
                 path_to_string(tauri::api::path::picture_dir().unwrap())
             ),
             tmp_out_path: format!(
-                "{}\\resrgan-gui\\tmp_output",
+                "{}/resrgan-gui/tmp_output",
                 path_to_string(tauri::api::path::picture_dir().unwrap())
             ),
         }
@@ -48,7 +43,7 @@ fn path_to_string(x: PathBuf) -> String {
 #[tauri::command]
 fn open_output_folder(win: Window) {
     let paths = ConstantPaths::new();
-    let cmd = Command::new("explorer").args([&paths.output_path]).output();
+    let cmd = Command::new("xdg-open").args([&paths.output_path]).output();
     match cmd {
         Err(e) => return win.emit("output-log", format!("Error: {e}")).unwrap(),
         _ => win.emit("output-log", "Opening output folder...").unwrap(),
@@ -146,7 +141,7 @@ fn enhance_images(win: Window, images: Vec<&str>, style: &str) -> bool {
     let mut image_counter = 0;
     for image_path in images {
         image_counter += 1;
-        let file_name = image_path.split("\\").collect::<Vec<&str>>().pop().unwrap();
+        let file_name = image_path.split("/").collect::<Vec<&str>>().pop().unwrap();
         win.emit(
             "output-log",
             format!("[{image_counter}/{total_images}] Enhancing {file_name}..."),
@@ -158,7 +153,7 @@ fn enhance_images(win: Window, images: Vec<&str>, style: &str) -> bool {
                 "-i",
                 &image_path,
                 "-o",
-                &format!("{}\\4x_{file_name}", &paths.output_path),
+                &format!("{}/4x_{file_name}", &paths.output_path),
             ])
             .output();
         match cmd {
@@ -214,7 +209,7 @@ fn enhance_videos(win: Window, videos: Vec<&str>, scale: &str) -> bool {
         fs::create_dir(&paths.tmp_out_path).unwrap();
 
         video_counter += 1;
-        let file_name = video_path.split("\\").collect::<Vec<&str>>().pop().unwrap();
+        let file_name = video_path.split("/").collect::<Vec<&str>>().pop().unwrap();
         win.emit(
             "output-log",
             format!("[{video_counter}/{total_videos}] Enhancing {file_name}..."),
@@ -235,7 +230,7 @@ fn enhance_videos(win: Window, videos: Vec<&str>, scale: &str) -> bool {
                 "1",
                 "-vsync",
                 "0",
-                &format!("{}\\frame%08d.jpg", &paths.tmp_in_path),
+                &format!("{}/frame%08d.jpg", &paths.tmp_in_path),
             ])
             .output();
         match cmd {
@@ -263,7 +258,7 @@ fn enhance_videos(win: Window, videos: Vec<&str>, scale: &str) -> bool {
         let cmd = Command::new(&paths.ffmpeg_path)
             .args([
                 "-i",
-                &format!("{}\\frame%08d.jpg", &paths.tmp_out_path),
+                &format!("{}/frame%08d.jpg", &paths.tmp_out_path),
                 "-i",
                 video_path,
                 "-map",
@@ -273,8 +268,12 @@ fn enhance_videos(win: Window, videos: Vec<&str>, scale: &str) -> bool {
                 "-c:a",
                 "copy",
                 "-c:v",
-                "libx264",
-                &format!("{}\\x{scale}_{file_name}", &paths.output_path),
+                //"libx264", for ffmpeg cpu
+                "h264_nvenc",
+                "23.98",
+                "-pix_fmt",
+                "yuv420",
+                &format!("{}/x{scale}_{file_name}", &paths.output_path),
             ])
             .output();
         match cmd {
